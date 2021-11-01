@@ -20,6 +20,4 @@ if [ $# -ne 0 ]; then
   exit $code
 fi
 
-find . \
-  -path "./backend/ethereum/bindings/*" -prune \
-  -o -name "*.go" -exec $0 {} +
+find . -name "*.go" -exec $0 {} +
