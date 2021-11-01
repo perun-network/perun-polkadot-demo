@@ -1,6 +1,6 @@
 // Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
+// perun-polkadot-demo. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
 
 package demo
@@ -52,7 +52,7 @@ func (n *node) Benchmark(args []string) error {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 	peer := n.peers[args[0]]
-	totalAmountEth, _ := strconv.Atoi(args[1])
+	totalAmountDot, _ := strconv.Atoi(args[1])
 	txCount, _ := strconv.Atoi(args[2])
 	var r run
 
@@ -64,8 +64,8 @@ func (n *node) Benchmark(args []string) error {
 		return errors.New("Open a state channel first")
 	}
 
-	totalAmountWei := etherToWei(big.NewFloat(float64(totalAmountEth)))[0]
-	txAmount := new(big.Int).Div(totalAmountWei, big.NewInt(int64(txCount)))
+	totalAmountPlank := dotToPlank(big.NewFloat(float64(totalAmountDot)))[0]
+	txAmount := new(big.Int).Div(totalAmountPlank, big.NewInt(int64(txCount)))
 	for i := 0; i < txCount; i++ {
 		r.Start()
 		if err := peer.ch.sendMoney(txAmount); err != nil {

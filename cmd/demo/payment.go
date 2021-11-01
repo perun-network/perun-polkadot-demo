@@ -1,6 +1,6 @@
 // Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
+// perun-polkadot-demo. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
 
 package demo
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 
+	dot "github.com/perun-network/perun-polkadot-backend/pkg/substrate"
 	"github.com/pkg/errors"
 	"perun.network/go-perun/channel"
 	"perun.network/go-perun/client"
@@ -72,8 +73,8 @@ func (ch *paymentChannel) sendUpdate(update func(*channel.State) error, desc str
 	state := ch.State()
 	balChanged := stateBefore.Balances[0][0].Cmp(state.Balances[0][0]) != 0
 	if balChanged {
-		bals := weiToEther(state.Allocation.Balances[0]...)
-		fmt.Printf("💰 Sent payment. New balance: [My: %v Ξ, Peer: %v Ξ]\n", bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
+		bals := dot.NewDotsFromPlanks(state.Allocation.Balances[0]...)
+		fmt.Printf("💰 Sent payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
 	}
 	if err == nil {
 		ch.lastState = state
@@ -107,8 +108,8 @@ func (ch *paymentChannel) Handle(update client.ChannelUpdate, res *client.Update
 	}
 
 	if balChanged {
-		bals := weiToEther(update.State.Allocation.Balances[0]...)
-		PrintfAsync("💰 Received payment. New balance: [My: %v Ξ, Peer: %v Ξ]\n", bals[ch.Idx()], bals[1-ch.Idx()])
+		bals := dot.NewDotsFromPlanks(update.State.Allocation.Balances[0]...)
+		PrintfAsync("💰 Received payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()])
 	}
 	ch.lastState = update.State.Clone()
 }

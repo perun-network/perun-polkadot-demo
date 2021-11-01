@@ -1,6 +1,6 @@
 // Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
+// perun-polkadot-demo. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
 
 package cmd
@@ -12,15 +12,15 @@ import (
 
 	"perun.network/go-perun/log"
 
-	"github.com/perun-network/perun-eth-demo/cmd/demo"
+	"github.com/perun-network/perun-polkadot-demo/cmd/demo"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var rootCmd = &cobra.Command{
-	Use:              "perun-eth-demo",
+	Use:              "perun-polkadot-demo",
 	Short:            "Perun State Channels Demo",
-	Long:             "Demonstrator for the Perun state channel framework using the Ethereum backend.",
+	Long:             "Demonstrator for the Perun state channel framework using the Polkadot backend.",
 	PersistentPreRun: runRoot,
 }
 

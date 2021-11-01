@@ -1,6 +1,6 @@
 // Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
 // Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
+// perun-polkadot-demo. Use of this source code is governed by the Apache 2.0
 // license that can be found in the LICENSE file.
 
 package demo
@@ -66,7 +66,7 @@ func init() {
 		}, {
 			"benchmark",
 			[]argument{{"Peer", valPeer}, {"amount", valUInt}, {"txCount", valUInt}},
-			"Performs a benchmark with the given peer by sending amount ETH in txCount micro transactions. Must have an open channel with the peer.",
+			"Performs a benchmark with the given peer by sending amount Dot in txCount micro transactions. Must have an open channel with the peer.",
 			func(args []string) error { return backend.Benchmark(args) },
 		}, {
 			"help",
