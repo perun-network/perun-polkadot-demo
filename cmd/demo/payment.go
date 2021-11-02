@@ -1,7 +1,16 @@
-// Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
-// Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
-// license that can be found in the LICENSE file.
+// Copyright 2021 - See NOTICE file for copyright holders.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package demo
 
@@ -10,6 +19,7 @@ import (
 	"fmt"
 	"math/big"
 
+	dot "github.com/perun-network/perun-polkadot-backend/pkg/substrate"
 	"github.com/pkg/errors"
 	"perun.network/go-perun/channel"
 	"perun.network/go-perun/client"
@@ -22,26 +32,14 @@ type (
 
 		log     log.Logger
 		handler chan bool
-		res     chan handlerRes
-		onFinal func()
-		// save the last state to circumvent the `channel.StateMtxd` problem
-		lastState *channel.State
-	}
-
-	// A handlerRes encapsulates the result of a channel handling request
-	handlerRes struct {
-		up  client.ChannelUpdate
-		err error
 	}
 )
 
 func newPaymentChannel(ch *client.Channel) *paymentChannel {
 	return &paymentChannel{
-		Channel:   ch,
-		log:       log.WithField("channel", ch.ID()),
-		handler:   make(chan bool, 1),
-		res:       make(chan handlerRes),
-		lastState: ch.State(),
+		Channel: ch,
+		log:     log.WithField("channel", ch.ID()),
+		handler: make(chan bool, 1),
 	}
 }
 func (ch *paymentChannel) sendMoney(amount *big.Int) error {
@@ -72,11 +70,8 @@ func (ch *paymentChannel) sendUpdate(update func(*channel.State) error, desc str
 	state := ch.State()
 	balChanged := stateBefore.Balances[0][0].Cmp(state.Balances[0][0]) != 0
 	if balChanged {
-		bals := weiToEther(state.Allocation.Balances[0]...)
-		fmt.Printf("💰 Sent payment. New balance: [My: %v Ξ, Peer: %v Ξ]\n", bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
-	}
-	if err == nil {
-		ch.lastState = state
+		bals := dot.NewDotsFromPlanks(state.Allocation.Balances[0]...)
+		fmt.Printf("💰 Sent payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
 	}
 
 	return err
@@ -95,22 +90,25 @@ func stateBals(state *channel.State) []channel.Bal {
 	return state.Balances[0]
 }
 
-func (ch *paymentChannel) Handle(update client.ChannelUpdate, res *client.UpdateResponder) {
-	oldBal := stateBals(ch.lastState)
+func (ch *paymentChannel) Handle(old *channel.State, update client.ChannelUpdate, res *client.UpdateResponder) {
+	oldBal := stateBals(old)
 	balChanged := oldBal[0].Cmp(update.State.Balances[0][0]) != 0
 	ctx, cancel := context.WithTimeout(context.Background(), config.Channel.Timeout)
 	defer cancel()
-	if err := assertValidTransition(ch.lastState, update.State, update.ActorIdx); err != nil {
-		res.Reject(ctx, "invalid transition")
+	if err := assertValidTransition(old, update.State, update.ActorIdx); err != nil {
+		if err := res.Reject(ctx, "invalid transition"); err != nil {
+			ch.log.WithError(err).Error("Could not reject channel proposal")
+		} else {
+			return
+		}
 	} else if err := res.Accept(ctx); err != nil {
 		ch.log.Error(errors.WithMessage(err, "handling payment update"))
 	}
 
 	if balChanged {
-		bals := weiToEther(update.State.Allocation.Balances[0]...)
-		PrintfAsync("💰 Received payment. New balance: [My: %v Ξ, Peer: %v Ξ]\n", bals[ch.Idx()], bals[1-ch.Idx()])
+		bals := dot.NewDotsFromPlanks(update.State.Allocation.Balances[0]...)
+		PrintfAsync("💰 Received payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()])
 	}
-	ch.lastState = update.State.Clone()
 }
 
 // assertValidTransition checks that money flows only from the actor to the

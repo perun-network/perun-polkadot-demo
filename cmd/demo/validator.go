@@ -1,46 +1,32 @@
-// Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
-// Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
-// license that can be found in the LICENSE file.
+// Copyright 2021 - See NOTICE file for copyright holders.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package demo
 
 import (
-	"bytes"
-	"encoding/hex"
 	"math/big"
-	"net"
 	"strconv"
 
-	"github.com/ethereum/go-ethereum/params"
+	sr25519 "github.com/perun-network/perun-polkadot-backend/pkg/sr25519"
+	dot "github.com/perun-network/perun-polkadot-backend/pkg/substrate"
+	dotwallet "github.com/perun-network/perun-polkadot-backend/wallet/sr25519"
 	"github.com/pkg/errors"
-	"perun.network/go-perun/wallet"
 )
 
 func valBal(input string) error {
 	_, _, err := big.ParseFloat(input, 10, 64, big.ToNearestEven)
 	return errors.Wrap(err, "parsing float")
-}
-
-func valString(input string) error {
-	if len(input) < 1 {
-		return errors.New("Empty string")
-	}
-	return nil
-}
-
-func valID(input string) error {
-	if _, err := strToAddress(input); err != nil {
-		return errors.New("Invalid perun-id, must be an Ethereum address")
-	}
-	return nil
-}
-
-func valIP(input string) error {
-	if val := net.ParseIP(input); val == nil {
-		return errors.New("Invalid IP")
-	}
-	return nil
 }
 
 func valUInt(input string) error {
@@ -68,36 +54,18 @@ func valAlias(arg string) error {
 	return errors.Errorf("Unknown alias, use 'config' to see available")
 }
 
-// strToAddress parses a string as wallet.Address
-func strToAddress(str string) (wallet.Address, error) {
-	if len(str) != 42 {
-		return nil, errors.Errorf("Public keys must be chars 40 hex strings was '%s'", str)
-	}
-	h, err := hex.DecodeString(str[2:])
-	if err != nil {
-		return nil, errors.New("Could not parse address as hexadecimal")
-	}
-	addr, err := wallet.DecodeAddress(bytes.NewBuffer(h))
-	return addr, errors.WithMessage(err, "string to address")
+// strToAddress parses a string as dotwallet.Address
+func strToAddress(str string) (*dotwallet.Address, error) {
+	pk, err := sr25519.NewPKFromHex(str)
+	return dotwallet.NewAddressFromPK(pk), err
 }
 
-// etherToWei converts amount in "ether" (represented as float) to "wei" (represented as integer).
-// It can provide exact results for values in the range of 1e-18 to 1e9.
-func etherToWei(ethers ...*big.Float) []*big.Int {
-	weis := make([]*big.Int, len(ethers))
-	for idx, ether := range ethers {
-		weiFloat := new(big.Float).Mul(ether, new(big.Float).SetFloat64(params.Ether))
+func dotToPlank(dots ...*big.Float) []*big.Int {
+	planks := make([]*big.Int, len(dots))
+	for idx, d := range dots {
+		plankFloat := new(big.Float).Mul(d, new(big.Float).SetFloat64(dot.PlankPerDot))
 		// accuracy (second return value) returns "exact" for specified input range, hence ignored.
-		weis[idx], _ = weiFloat.Int(nil)
+		planks[idx], _ = plankFloat.Int(nil)
 	}
-	return weis
-}
-
-// weiToEther converts amount in "wei" (represented as integer) to "ether" (represented as float).
-func weiToEther(weis ...*big.Int) []*big.Float {
-	ethers := make([]*big.Float, len(weis))
-	for idx, wei := range weis {
-		ethers[idx] = new(big.Float).Quo(new(big.Float).SetInt(wei), new(big.Float).SetFloat64(params.Ether))
-	}
-	return ethers
+	return planks
 }

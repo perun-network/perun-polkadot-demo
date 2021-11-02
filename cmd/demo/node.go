@@ -1,7 +1,16 @@
-// Copyright (c) 2019 Chair of Applied Cryptography, Technische Universität
-// Darmstadt, Germany. All rights reserved. This file is part of
-// perun-eth-demo. Use of this source code is governed by the Apache 2.0
-// license that can be found in the LICENSE file.
+// Copyright 2021 - See NOTICE file for copyright holders.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package demo
 
@@ -13,14 +22,13 @@ import (
 	"strconv"
 	"sync"
 	"text/tabwriter"
+	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
-	_ "perun.network/go-perun/backend/ethereum" // backend init
-	echannel "perun.network/go-perun/backend/ethereum/channel"
-	ewallet "perun.network/go-perun/backend/ethereum/wallet"
-	phd "perun.network/go-perun/backend/ethereum/wallet/hd"
+	dotchannel "github.com/perun-network/perun-polkadot-backend/channel"
+	dot "github.com/perun-network/perun-polkadot-backend/pkg/substrate"
+	dotwallet "github.com/perun-network/perun-polkadot-backend/wallet/sr25519"
 	"perun.network/go-perun/channel"
 	"perun.network/go-perun/client"
 	"perun.network/go-perun/log"
@@ -43,35 +51,31 @@ type node struct {
 	bus    *wirenet.Bus
 	client *client.Client
 	dialer *simple.Dialer
+	api    *dot.API
 
 	// Account for signing on-chain TX. Currently also the Perun-ID.
-	onChain *phd.Account
+	onChain *dotwallet.Account
 	// Account for signing off-chain TX. Currently one Account for all
 	// state channels, later one we want one Account per Channel.
 	offChain wallet.Account
-	wallet   *phd.Wallet
+	wallet   *dotwallet.Wallet
 
 	adjudicator channel.Adjudicator
-	adjAddr     common.Address
-	asset       channel.Asset
-	assetAddr   common.Address
 	funder      channel.Funder
-	// Needed to deploy contracts.
-	cb echannel.ContractBackend
 
 	// Protects peers
 	mtx   sync.Mutex
 	peers map[string]*peer
 }
 
-func getOnChainBal(ctx context.Context, addrs ...wallet.Address) ([]*big.Int, error) {
+func (n *node) getOnChainBal(ctx context.Context, addrs ...wallet.Address) ([]*big.Int, error) {
 	bals := make([]*big.Int, len(addrs))
-	var err error
-	for idx, addr := range addrs {
-		bals[idx], err = ethereumBackend.BalanceAt(ctx, ewallet.AsEthAddr(addr), nil)
+	for i, addr := range addrs {
+		accInfo, err := n.api.AccountInfo(dotwallet.AsAddr(addr).AccountID())
 		if err != nil {
 			return nil, errors.Wrap(err, "querying on-chain balance")
 		}
+		bals[i] = accInfo.Free.Int
 	}
 	return bals, nil
 }
@@ -146,8 +150,8 @@ func (n *node) setupChannel(ch *client.Channel) {
 		l.WithError(err).Debug("Watcher stopped")
 	}()
 
-	bals := weiToEther(ch.State().Balances[0]...)
-	fmt.Printf("🆕 Channel established with %s. Initial balance: [My: %v Ξ, Peer: %v Ξ]\n",
+	bals := dot.NewDotsFromPlanks(ch.State().Balances[0]...)
+	fmt.Printf("🆕 Channel established with %s. Initial balance: [My: %v, Peer: %v]\n",
 		p.alias, bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
 }
 
@@ -199,7 +203,7 @@ func findConfig(id wallet.Address) (string, *netConfigEntry) {
 	return "", nil
 }
 
-func (n *node) HandleUpdate(update client.ChannelUpdate, resp *client.UpdateResponder) {
+func (n *node) HandleUpdate(old *channel.State, update client.ChannelUpdate, resp *client.UpdateResponder) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 	log := n.log.WithField("channel", update.State.ID)
@@ -210,7 +214,7 @@ func (n *node) HandleUpdate(update client.ChannelUpdate, resp *client.UpdateResp
 		log.Error("Channel for ID not found")
 		return
 	}
-	ch.Handle(update, resp)
+	ch.Handle(old, update, resp)
 }
 
 func (n *node) channel(id channel.ID) *paymentChannel {
@@ -260,10 +264,10 @@ func (n *node) HandleProposal(prop client.ChannelProposal, res *client.ProposalR
 	}
 	n.log.WithField("peer", id).Debug("Channel proposal")
 
-	bals := weiToEther(req.InitBals.Balances[0]...)
+	bals := dot.NewDotsFromPlanks(req.InitBals.Balances[0]...)
 	theirBal := bals[0] // proposer has index 0
 	ourBal := bals[1]   // proposal receiver has index 1
-	msg := fmt.Sprintf("🔁 Incoming channel proposal from %v with funding [My: %v Ξ, Peer: %v Ξ].\nAccept (y/n)? ", alias, ourBal, theirBal)
+	msg := fmt.Sprintf("🔁 Incoming channel proposal from %v with funding [My: %v, Peer: %v].\nAccept (y/n)? ", alias, ourBal, theirBal)
 	Prompt(msg, func(userInput string) {
 		ctx, cancel := context.WithTimeout(context.Background(), config.Node.HandleTimeout)
 		defer cancel()
@@ -297,12 +301,12 @@ func (n *node) Open(args []string) error {
 		}
 		peer = n.peers[peerName]
 	}
-	myBalEth, _ := new(big.Float).SetString(args[1]) // Input was already validated by command parser.
-	peerBalEth, _ := new(big.Float).SetString(args[2])
+	myBalDot, _ := new(big.Float).SetString(args[1]) // Input was already validated by command parser.
+	peerBalDot, _ := new(big.Float).SetString(args[2])
 
 	initBals := &channel.Allocation{
-		Assets:   []channel.Asset{n.asset},
-		Balances: [][]*big.Int{etherToWei(myBalEth, peerBalEth)},
+		Assets:   []channel.Asset{dotchannel.Asset},
+		Balances: [][]*big.Int{dotToPlank(myBalDot, peerBalDot)},
 	}
 
 	prop, err := client.NewLedgerChannelProposal(
@@ -342,8 +346,8 @@ func (n *node) Send(args []string) error {
 	} else if peer.ch == nil {
 		return errors.Errorf("connect to peer first")
 	}
-	amountEth, _ := new(big.Float).SetString(args[1]) // Input was already validated by command parser.
-	return peer.ch.sendMoney(etherToWei(amountEth)[0])
+	amountDot, _ := new(big.Float).SetString(args[1]) // Input was already validated by command parser.
+	return peer.ch.sendMoney(dotToPlank(amountDot)[0])
 }
 
 func (n *node) Close(args []string) error {
@@ -372,10 +376,7 @@ func (n *node) settle(p *peer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), config.Channel.SettleTimeout)
 	defer cancel()
 
-	if err := p.ch.Register(ctx); err != nil {
-		return errors.WithMessage(err, "registering")
-	}
-	if err := p.ch.Settle(ctx, p.ch.Idx() == 0); err != nil {
+	if err := p.ch.Settle(ctx, false); err != nil {
 		return errors.WithMessage(err, "settling the channel")
 	}
 
@@ -393,22 +394,22 @@ func (n *node) Info(args []string) error {
 	defer n.mtx.Unlock()
 	n.log.Traceln("Info...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), config.Chain.TxTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Chain.TxTimeoutSec)*time.Second)
 	defer cancel()
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', tabwriter.Debug)
-	fmt.Fprintf(w, "Peer\tPhase\tVersion\tMy Ξ\tPeer Ξ\tMy On-Chain Ξ\tPeer On-Chain Ξ\t\n")
+	fmt.Fprintf(w, "Peer\tPhase\tVersion\tMy D\tPeer D\tMy On-Chain D\tPeer On-Chain D\t\n")
 	for alias, peer := range n.peers {
-		onChainBals, err := getOnChainBal(ctx, n.onChain.Address(), peer.perunID)
+		onChainBals, err := n.getOnChainBal(ctx, n.onChain.Address(), peer.perunID)
 		if err != nil {
 			return err
 		}
-		onChainBalsEth := weiToEther(onChainBals...)
+		onChainBalsDot := dot.NewDotsFromPlanks(onChainBals...)
 		if peer.ch == nil {
-			fmt.Fprintf(w, "%s\t%s\t \t \t \t%v\t%v\t\n", alias, "Connected", onChainBalsEth[0], onChainBalsEth[1])
+			fmt.Fprintf(w, "%s\t%s\t \t \t \t%v\t%v\t\n", alias, "Connected", onChainBalsDot[0], onChainBalsDot[1])
 		} else {
-			bals := weiToEther(peer.ch.GetBalances())
-			fmt.Fprintf(w, "%s\t%v\t%d\t%v\t%v\t%v\t%v\t\n",
-				alias, peer.ch.Phase(), peer.ch.State().Version, bals[0], bals[1], onChainBalsEth[0], onChainBalsEth[1])
+			bals := dot.NewDotsFromPlanks(peer.ch.GetBalances())
+			fmt.Fprintf(w, "%s\t%v\t%v\t%v\t%v\t%v\t%v\t\n",
+				alias, peer.ch.Phase(), peer.ch.State().Version, bals[0], bals[1], onChainBalsDot[0], onChainBalsDot[1])
 		}
 	}
 	fmt.Fprintln(w)
