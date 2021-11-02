@@ -18,7 +18,6 @@ node:
 chain:
   nodeUrl: ws://127.0.0.1:9944
   networkId: 42
-  blockTimeSec: 1
   blockQueryDepth: 100
   txTimeoutSec: 30
 

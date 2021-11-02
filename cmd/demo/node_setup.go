@@ -99,8 +99,7 @@ func (n *node) setup() error {
 	}
 	go n.client.Handle(n, n)
 	go n.bus.Listen(listener)
-	n.PrintConfig()
-	return nil
+	return n.PrintConfig()
 }
 
 func (n *node) setupPersistence() error {

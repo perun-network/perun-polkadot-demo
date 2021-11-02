@@ -43,7 +43,10 @@ func init() {
 	demoCmd.PersistentFlags().StringVar(&flags.cfgNetFile, "network", "network.yaml", "Network config file")
 	demoCmd.PersistentFlags().BoolVar(&GetConfig().Node.PersistenceEnabled, "persistence", false, "Enables the persistence")
 	demoCmd.PersistentFlags().StringVar(&GetConfig().Sk, "secretkey", "", "Hex secret key 0x…")
-	viper.BindPFlag("secretkey", demoCmd.PersistentFlags().Lookup("secretkey"))
+	err := viper.BindPFlag("secretkey", demoCmd.PersistentFlags().Lookup("secretkey"))
+	if err != nil {
+		panic(err)
+	}
 }
 
 // GetDemoCmd exposes demoCmd so that it can be used as a sub-command by another cobra command instance.

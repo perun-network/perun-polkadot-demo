@@ -9,7 +9,7 @@
   <a href="https://github.com/perun-network/perun-polkadot-node/actions/workflows/rust.yml"><img src="https://github.com/perun-network/perun-polkadot-node/actions/workflows/rust.yml/badge.svg" alt="CI status"></a>
 </p>
 
-_perun-polkadot-demo_ allows you to interact with [perun](https://perun.network/) Payment-Channels over a CLI powered by [go-perun](https://github.com/perun-network/go-perun).  
+_perun-polkadot-demo_ allows you to interact with [Perun](https://perun.network/) Payment-Channels over a CLI powered by [go-perun](https://github.com/perun-network/go-perun).  
 It connects to our [Pallet] that runs on a [Polkadot Node] by using our [Polkadot Backend].
 
 ## Security Disclaimer
@@ -39,7 +39,7 @@ configuration for Alice and Bob is provided in file `network.yaml`.
 ## Example Walkthrough
 In a first terminal, start a development [Polkadot Node]:
 ```sh
-docker run --rm -it -p 127.0.0.1:9944:9944/tcp ghcr.io/perun-network/polkadot-test-node:docker-push
+docker run --rm -it -p 9944:9944 ghcr.io/perun-network/polkadot-test-node
 ```
 
 In a second terminal, start the node of Alice with
@@ -89,9 +89,7 @@ Now you can exit the CLI with command `exit` or `Ctrl+D`.
 
 ## Copyright
 
-Copyright 2021 PolyCrypt GmbH.  
-Copyright 2021 Chair of Applied Cryptography, Technische Universität Darmstadt, Germany.  
-All rights reserved.
+Copyright 2021 PolyCrypt GmbH. All rights reserved.  
 Use of the source code is governed by the Apache 2.0 license that can be found in the [LICENSE file](LICENSE).
 
 Contact us at [info@perun.network](mailto:info@perun.network).

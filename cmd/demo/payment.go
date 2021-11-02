@@ -32,16 +32,8 @@ type (
 
 		log     log.Logger
 		handler chan bool
-		res     chan handlerRes
-		onFinal func()
 		// save the last state to circumvent the `channel.StateMtxd` problem
 		lastState *channel.State
-	}
-
-	// A handlerRes encapsulates the result of a channel handling request
-	handlerRes struct {
-		up  client.ChannelUpdate
-		err error
 	}
 )
 
@@ -50,7 +42,6 @@ func newPaymentChannel(ch *client.Channel) *paymentChannel {
 		Channel:   ch,
 		log:       log.WithField("channel", ch.ID()),
 		handler:   make(chan bool, 1),
-		res:       make(chan handlerRes),
 		lastState: ch.State(),
 	}
 }
@@ -111,7 +102,11 @@ func (ch *paymentChannel) Handle(update client.ChannelUpdate, res *client.Update
 	ctx, cancel := context.WithTimeout(context.Background(), config.Channel.Timeout)
 	defer cancel()
 	if err := assertValidTransition(ch.lastState, update.State, update.ActorIdx); err != nil {
-		res.Reject(ctx, "invalid transition")
+		if err := res.Reject(ctx, "invalid transition"); err != nil {
+			ch.log.WithError(err).Error("Could not reject channel proposal")
+		} else {
+			return
+		}
 	} else if err := res.Accept(ctx); err != nil {
 		ch.log.Error(errors.WithMessage(err, "handling payment update"))
 	}

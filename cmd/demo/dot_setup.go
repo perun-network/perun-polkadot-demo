@@ -28,7 +28,6 @@ type (
 	chainConfig struct {
 		NodeUrl         string        `json:"node_url"`
 		NetworkId       dot.NetworkID `json:"network_id"`
-		BlockTimeSec    uint32        `json:"block_time_sec"`
 		TxTimeoutSec    uint32        `json:"tx_timeout_sec"`
 		BlockQueryDepth uint32        `json:"block_query_depth"` // Actually of type types.BlockNumber.
 	}
@@ -59,12 +58,8 @@ func (c *chainConfig) validate() error {
 	switch {
 	case c.NodeUrl == "":
 		return errors.New("empty node url")
-	case c.BlockTimeSec == 0 || c.BlockTimeSec > 60:
-		return errors.New("block time out of range")
 	case c.BlockQueryDepth < 1 || c.BlockQueryDepth > 1000:
 		return errors.New("block query depth out of range")
-	case c.TxTimeoutSec < c.BlockTimeSec || c.TxTimeoutSec > 60*c.BlockTimeSec:
-		return errors.New("tx timeout out of range")
 	default:
 		return nil
 	}

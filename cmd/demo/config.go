@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package demo // import "github.com/perun-network/perun-polkadot-demo/cmd/demo"
+package demo
 
 import (
 	"log"

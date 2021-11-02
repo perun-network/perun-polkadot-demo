@@ -36,11 +36,8 @@ type command struct {
 }
 
 var commands []command
-var cmdInput chan string
 
 func init() {
-	cmdInput = make(chan string, 1)
-
 	commands = []command{
 		{
 			"connect",
