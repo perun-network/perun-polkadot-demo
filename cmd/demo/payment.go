@@ -32,17 +32,14 @@ type (
 
 		log     log.Logger
 		handler chan bool
-		// save the last state to circumvent the `channel.StateMtxd` problem
-		lastState *channel.State
 	}
 )
 
 func newPaymentChannel(ch *client.Channel) *paymentChannel {
 	return &paymentChannel{
-		Channel:   ch,
-		log:       log.WithField("channel", ch.ID()),
-		handler:   make(chan bool, 1),
-		lastState: ch.State(),
+		Channel: ch,
+		log:     log.WithField("channel", ch.ID()),
+		handler: make(chan bool, 1),
 	}
 }
 func (ch *paymentChannel) sendMoney(amount *big.Int) error {
@@ -76,9 +73,6 @@ func (ch *paymentChannel) sendUpdate(update func(*channel.State) error, desc str
 		bals := dot.NewDotsFromPlanks(state.Allocation.Balances[0]...)
 		fmt.Printf("💰 Sent payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()]) // assumes two-party channel
 	}
-	if err == nil {
-		ch.lastState = state
-	}
 
 	return err
 }
@@ -96,12 +90,12 @@ func stateBals(state *channel.State) []channel.Bal {
 	return state.Balances[0]
 }
 
-func (ch *paymentChannel) Handle(update client.ChannelUpdate, res *client.UpdateResponder) {
-	oldBal := stateBals(ch.lastState)
+func (ch *paymentChannel) Handle(old *channel.State, update client.ChannelUpdate, res *client.UpdateResponder) {
+	oldBal := stateBals(old)
 	balChanged := oldBal[0].Cmp(update.State.Balances[0][0]) != 0
 	ctx, cancel := context.WithTimeout(context.Background(), config.Channel.Timeout)
 	defer cancel()
-	if err := assertValidTransition(ch.lastState, update.State, update.ActorIdx); err != nil {
+	if err := assertValidTransition(old, update.State, update.ActorIdx); err != nil {
 		if err := res.Reject(ctx, "invalid transition"); err != nil {
 			ch.log.WithError(err).Error("Could not reject channel proposal")
 		} else {
@@ -115,7 +109,6 @@ func (ch *paymentChannel) Handle(update client.ChannelUpdate, res *client.Update
 		bals := dot.NewDotsFromPlanks(update.State.Allocation.Balances[0]...)
 		PrintfAsync("💰 Received payment. New balance: [My: %v, Peer: %v]\n", bals[ch.Idx()], bals[1-ch.Idx()])
 	}
-	ch.lastState = update.State.Clone()
 }
 
 // assertValidTransition checks that money flows only from the actor to the

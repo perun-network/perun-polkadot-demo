@@ -203,7 +203,7 @@ func findConfig(id wallet.Address) (string, *netConfigEntry) {
 	return "", nil
 }
 
-func (n *node) HandleUpdate(_ *channel.State, update client.ChannelUpdate, resp *client.UpdateResponder) {
+func (n *node) HandleUpdate(old *channel.State, update client.ChannelUpdate, resp *client.UpdateResponder) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 	log := n.log.WithField("channel", update.State.ID)
@@ -214,7 +214,7 @@ func (n *node) HandleUpdate(_ *channel.State, update client.ChannelUpdate, resp 
 		log.Error("Channel for ID not found")
 		return
 	}
-	ch.Handle(update, resp)
+	ch.Handle(old, update, resp)
 }
 
 func (n *node) channel(id channel.ID) *paymentChannel {
