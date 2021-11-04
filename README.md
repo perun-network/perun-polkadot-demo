@@ -18,6 +18,8 @@ The authors take no responsibility for any loss of digital assets or other damag
 
 ## Getting Started
 
+### Compilation
+
 Running _perun-polkadot-demo_ requires a recent [Go installation](https://golang.org), see `go.mod` for the required version. 
 ```sh
 # Clone the repository into a directory of your choice
@@ -27,6 +29,15 @@ cd perun-polkadot-demo
 go build
 # Check that the binary works
 ./perun-polkadot-demo --help
+```
+
+### Docker
+
+You can also run the demo via Docker:  
+```sh
+docker build -t perun-polkadot-demo .
+# Check that the image works
+docker run --rm perun-polkadot-demo --help
 ```
 
 ## Demo
@@ -46,10 +57,17 @@ In a second terminal, start the node of Alice with
 ```sh
 ./perun-polkadot-demo demo --config alice.yaml
 ```
-and in a third terminal, start the node of Bob with
+In a third terminal, start the node of Bob with
 ```sh
 ./perun-polkadot-demo demo --config bob.yaml
 ```
+
+Alternatively you can start the clients via Docker:
+```sh
+docker run --rm -it -v $(pwd):/cfg --net=host perun-polkadot-demo demo --config /cfg/alice.yaml --network /cfg/network.yaml
+docker run --rm -it -v $(pwd):/cfg --net=host perun-polkadot-demo demo --config /cfg/bob.yaml --network /cfg/network.yaml
+```
+This will only work on Systems that support the `--net=host` option. See the [docker docs] for more info.
 
 Once both CLIs are running, e.g. in Alice's terminal, propose a payment channel
 to Bob with 100 *Dot* deposit from both sides via the following command.
@@ -87,6 +105,7 @@ Finally, you can settle the channel on either side with
 
 Now you can exit the CLI with command `exit` or `Ctrl+D`.
 
+
 ## Copyright
 
 Copyright 2021 PolyCrypt GmbH. All rights reserved.  
@@ -98,3 +117,4 @@ Contact us at [info@perun.network](mailto:info@perun.network).
 [Pallet]: https://github.com/perun-network/perun-polkadot-pallet/
 [Polkadot Backend]: https://github.com/perun-network/perun-polkadot-backend
 [Polkadot Node]: https://github.com/perun-network/perun-polkadot-node
+[docker docs]: https://docs.docker.com/network/host/
